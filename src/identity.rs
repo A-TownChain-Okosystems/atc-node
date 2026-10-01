@@ -8,7 +8,7 @@ pub const CHAIN_ID: &str = "atc";
 pub const DEVNET_NETWORK_ID: &str = "devnet";
 pub const PROTOCOL_VERSION: &str = "1.0.0";
 pub const VM_VERSION: &str = "1.0.0";
-pub const TX_DOMAIN: &str = "ATC-TX-DOMAIN";
+pub const TX_DOMAIN: &str = "ATC-TX-DOMAIN-V2";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChainIdentity { pub chain_id: String, pub network_id: String, pub genesis_id: String }
@@ -48,7 +48,7 @@ impl RuntimeContext {
 }
 
 impl TransactionDomain {
-    pub fn signing_bytes(&self, nonce: u64, sender: &str, recipient: &str, value: u64, fee: u64, payload: &[u8]) -> Vec<u8> {
+    pub fn signing_bytes(&self, nonce: u64, sender: &str, recipient: &str, value: u128, fee: u128, payload: &[u8]) -> Vec<u8> {
         let payload_hex = hex_encode(payload);
         let nonce_s = nonce.to_string(); let value_s = value.to_string(); let fee_s = fee.to_string();
         canonical_fields(&[
@@ -109,4 +109,28 @@ mod tests {
     #[test] fn genesis_id_is_deterministic() { let p=peers(); let a=compute_genesis_id(CHAIN_ID,"A-TownChain Devnet",DEVNET_NETWORK_ID,0,&p,&"0".repeat(64),PROTOCOL_VERSION,VM_VERSION); let b=compute_genesis_id(CHAIN_ID,"A-TownChain Devnet",DEVNET_NETWORK_ID,0,&p,&"0".repeat(64),PROTOCOL_VERSION,VM_VERSION); assert_eq!(a,b); assert_eq!(a.len(),64); }
     #[test] fn identity_is_fail_closed() { let p=peers(); let id=compute_genesis_id(CHAIN_ID,"A-TownChain Devnet",DEVNET_NETWORK_ID,0,&p,&"0".repeat(64),PROTOCOL_VERSION,VM_VERSION); let i=ChainIdentity{chain_id:CHAIN_ID.into(),network_id:DEVNET_NETWORK_ID.into(),genesis_id:id}; assert!(verify_genesis_id(&i,"A-TownChain Devnet",0,&p,&"0".repeat(64),PROTOCOL_VERSION,VM_VERSION).is_ok()); }
     #[test] fn transaction_encoding_is_unambiguous() { let d=TransactionDomain{chain_id:CHAIN_ID.into(),network_id:DEVNET_NETWORK_ID.into(),protocol_version:PROTOCOL_VERSION.into(),transaction_type:"transfer".into()}; assert_ne!(d.signing_bytes(1,"alice","bob",10,1,b"ab"),d.signing_bytes(1,"alice","bob",10,1,b"a\0b")); }
+}
+
+
+#[cfg(test)]
+mod canonical_v2_tests {
+    use super::*;
+
+    #[test]
+    fn tx_domain_v2_is_mandatory() {
+        assert_eq!(TX_DOMAIN, "ATC-TX-DOMAIN-V2");
+    }
+
+    #[test]
+    fn u128_amounts_are_canonically_distinct() {
+        let d = TransactionDomain {
+            chain_id: CHAIN_ID.into(),
+            network_id: DEVNET_NETWORK_ID.into(),
+            protocol_version: PROTOCOL_VERSION.into(),
+            transaction_type: "transfer".into(),
+        };
+        let max = d.signing_bytes(1, "alice", "bob", u128::MAX, 0, &[]);
+        let low = d.signing_bytes(1, "alice", "bob", u128::MAX - 1, 0, &[]);
+        assert_ne!(max, low);
+    }
 }
