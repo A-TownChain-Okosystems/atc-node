@@ -50,13 +50,17 @@ impl RuntimeContext {
 impl TransactionDomain {
     pub fn signing_bytes(&self, nonce: u64, sender: &str, recipient: &str, value: u128, fee: u128, payload: &[u8]) -> Vec<u8> {
         let payload_hex = hex_encode(payload);
-        let nonce_s = nonce.to_string(); let value_s = value.to_string(); let fee_s = fee.to_string();
-        canonical_fields(&[
+        let nonce_s = nonce.to_string();
+        let mut out = canonical_fields(&[
             ("domain", TX_DOMAIN), ("chain_id", self.chain_id.as_str()), ("network_id", self.network_id.as_str()),
             ("protocol_version", self.protocol_version.as_str()), ("transaction_type", self.transaction_type.as_str()),
-            ("nonce", nonce_s.as_str()), ("sender", sender), ("recipient", recipient), ("value", value_s.as_str()),
-            ("fee", fee_s.as_str()), ("payload_hex", payload_hex.as_str()),
-        ])
+            ("nonce", nonce_s.as_str()), ("sender", sender), ("recipient", recipient),
+        ]);
+        out.extend_from_slice(&value.to_be_bytes());
+        out.extend_from_slice(&fee.to_be_bytes());
+        out.extend_from_slice(&(payload_hex.len() as u64).to_be_bytes());
+        out.extend_from_slice(payload_hex.as_bytes());
+        out
     }
 }
 
