@@ -8,3 +8,5 @@ pub mod rpc;
 pub mod config;
 pub mod peers;
 pub mod identity;
+
+pub mod authority;
