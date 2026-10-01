@@ -57,6 +57,10 @@ impl PeerTable {
         before != self.peers.len()
     }
 
+    pub fn state(&self, id: u64) -> Option<PeerState> {
+        self.peers.iter().find(|p| p.id == id).map(|p| p.state.clone())
+    }
+
     pub fn is_banned(&self, id: u64) -> bool {
         self.peers.iter().any(|p| p.id == id && p.state == PeerState::Banned)
     }
