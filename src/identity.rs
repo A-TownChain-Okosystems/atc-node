@@ -130,6 +130,7 @@ impl TransactionDomain {
 }
 
 /// Genesis identity = HASH(CANONICAL_ENCODE(genesis_document)).
+#[allow(clippy::too_many_arguments)]
 /// The genesis_id itself is excluded from its own preimage.
 pub fn compute_genesis_id(
     chain_id: &str,
