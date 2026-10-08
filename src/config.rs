@@ -16,7 +16,12 @@ pub struct NodeConfig {
 
 impl NodeConfig {
     pub fn new(listen_addr: impl Into<String>, max_peers: usize) -> Self {
-        NodeConfig { chain_id: CHAIN_ID.into(), network_id: NETWORK_ID.into(), listen_addr: listen_addr.into(), max_peers }
+        NodeConfig {
+            chain_id: CHAIN_ID.into(),
+            network_id: NETWORK_ID.into(),
+            listen_addr: listen_addr.into(),
+            max_peers,
+        }
     }
 
     pub fn valid(&self) -> bool {
