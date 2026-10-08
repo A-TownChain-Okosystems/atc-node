@@ -34,10 +34,8 @@ impl DevnetRpc {
 
 pub fn serve(addr: &str, state: DevnetRpc) -> std::io::Result<()> {
     let listener = TcpListener::bind(addr)?;
-    for stream in listener.incoming() {
-        if let Ok(stream) = stream {
-            handle(stream, &state)?;
-        }
+    for stream in listener.incoming().flatten() {
+        handle(stream, &state)?;
     }
     Ok(())
 }
