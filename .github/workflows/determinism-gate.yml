@@ -15,4 +15,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Run ATC determinism gate
-        run: python3 tools/determinism_check.py --lang rust --test-cmd "cargo test --quiet"
+        # Tests bind ephemeral TCP ports; serialize test cases to avoid races
+        # between the probe socket closing and the server socket binding.
+        # The determinism checker still compares two complete test runs byte-for-byte.
+        run: python3 tools/determinism_check.py --lang rust --test-cmd "cargo test --quiet -- --test-threads=1"
