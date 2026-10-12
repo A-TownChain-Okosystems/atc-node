@@ -3,8 +3,8 @@
 
 pub mod bootstrap;
 pub mod chain;
-pub mod gossip;
-pub mod rpc;
 pub mod config;
-pub mod peers;
+pub mod gossip;
 pub mod identity;
+pub mod peers;
+pub mod rpc;

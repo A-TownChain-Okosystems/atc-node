@@ -29,7 +29,9 @@ fn main() -> std::io::Result<()> {
         peers.len(),
         addr
     );
-    let kette = std::sync::Arc::new(std::sync::Mutex::new(atc_node::chain::Chain::from_genesis(&genesis)));
+    let kette = std::sync::Arc::new(std::sync::Mutex::new(atc_node::chain::Chain::from_genesis(
+        &genesis,
+    )));
     {
         let k = kette.lock().expect("Chain-Lock vergiftet");
         eprintln!(
