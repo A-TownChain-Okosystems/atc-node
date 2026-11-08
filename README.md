@@ -1,5 +1,12 @@
 # atc-node
 
+> **ABLAGE-HINWEIS (08.11.2026):** Dieses Repository ist ein Mirror ohne kanonischen Code.
+> Kanonisch ist A-TownChain-Okosystems/a-townchain -> components/node (13 statt 9 Quelldateien,
+> Tx-Pruefung + Nonce-Ledger, DID-Registry mit Rotation, 256-Bit-Blockhashes, 17 Sicherheits-Tests).
+> Der Stand hier ist um die P0-Haertung zurueck; Details in SYNC-STATUS.md.
+> Evidenz: a-townchain-ecosystem/docs/audit/2026-11-08-placement-audit.md
+
+
 > **Role:** Full-Node-Binary und Runtime für eine A-TownChain-Netzwerkinstanz. `atc-node` betreibt den Node; die kanonische Chain-/Protocol-Semantik bleibt in den dafür zuständigen Komponenten.
 
 **Project:** `atc-node`  
