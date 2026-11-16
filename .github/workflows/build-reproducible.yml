@@ -1,0 +1,154 @@
+name: Build and Reproducibility Evidence (ATC-STD-203 GATE-002)
+
+# ATC-STD-203 §13 (Reproducible Builds), ATC-STD-041 (Reproducible & Verifiable Builds),
+# ATC-STD-043 (Artifact Integrity). Erzeugt build-manifest.json IM Lauf, gebunden an
+# run_id und commit_sha. Kein nachtraeglich geschriebenes Manifest, keine Platzhalter.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: never
+  RUST_TOOLCHAIN: "1.100.0"
+  TARGET: x86_64-unknown-linux-gnu
+  PROFILE: release
+
+jobs:
+  build:
+    name: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Toolchain exakt festlegen
+        run: |
+          set -euo pipefail
+          rustup toolchain install "${RUST_TOOLCHAIN}" --profile minimal --no-self-update
+          rustup override set "${RUST_TOOLCHAIN}"
+          rustc --version | tee rustc-version.txt
+          cargo --version | tee cargo-version.txt
+
+      - name: Abhaengigkeiten aufloesen und Aufloesung protokollieren
+        run: |
+          set -euo pipefail
+          cargo generate-lockfile
+          sha256sum Cargo.lock | awk '{print $1}' > cargo-lock.sha256
+          cargo tree --locked --prefix none | sort > dependency-tree.txt
+          sha256sum dependency-tree.txt | awk '{print $1}' > dependency-tree.sha256
+          echo "packages=$(cargo metadata --locked --format-version 1 --no-deps >/dev/null; grep -c '^name = ' Cargo.lock || true)" | tee packages.count
+
+      - name: Build (release, locked)
+        run: |
+          set -euo pipefail
+          cargo build --${PROFILE} --locked --target "${TARGET}" 2>&1 | tee build.log
+
+      - name: Tests (locked)
+        run: |
+          set -euo pipefail
+          cargo test --locked --target "${TARGET}" 2>&1 | tee test.log
+
+      - name: Artefakte einsammeln und SHA-256 berechnen
+        run: |
+          set -euo pipefail
+          mkdir -p build-evidence
+          cp "target/${TARGET}/${PROFILE}/atc-node" build-evidence/atc-node
+          cp Cargo.lock dependency-tree.txt dependency-tree.sha256 cargo-lock.sha256 \
+             rustc-version.txt cargo-version.txt build.log test.log build-evidence/
+          cd build-evidence
+          sha256sum atc-node Cargo.lock dependency-tree.txt build.log test.log > checksums.txt
+          cat checksums.txt
+
+      - name: build-manifest.json erzeugen
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_WORKFLOW: ${{ github.workflow }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, subprocess
+          def sha(p):
+              h = hashlib.sha256()
+              with open(p, "rb") as f:
+                  for chunk in iter(lambda: f.read(1 << 20), b""):
+                      h.update(chunk)
+              return h.hexdigest()
+          arts = {}
+          for rel in ("atc-node", "Cargo.lock", "dependency-tree.txt", "build.log", "test.log"):
+              p = os.path.join("build-evidence", rel)
+              arts["build-evidence/" + rel] = {"sha256": sha(p), "bytes": os.path.getsize(p)}
+          lock_sha = open("build-evidence/cargo-lock.sha256").read().strip()
+          tree_sha = open("build-evidence/dependency-tree.sha256").read().strip()
+          rustc = open("build-evidence/rustc-version.txt").read().strip()
+          cargo = open("build-evidence/cargo-version.txt").read().strip()
+          test_log = open("build-evidence/test.log").read()
+          manifest = {
+              "manifest_version": "1.0",
+              "schema_source": "ATC-STD-043 Artifact Integrity (9-Feld-Record) / ATC-STD-041",
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "commit_sha": os.environ["GITHUB_SHA"],
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "ref_name": os.environ["GITHUB_REF_NAME"],
+              "workflow": os.environ["GITHUB_WORKFLOW"],
+              "toolchain": {"rustc": rustc, "cargo": cargo, "pinned": os.environ.get("RUST_TOOLCHAIN", "1.100.0")},
+              "build_configuration": {
+                  "target": "x86_64-unknown-linux-gnu",
+                  "profile": "release",
+                  "features": "default",
+                  "locked": True,
+                  "lockfile_present_in_repository": False,
+                  "lockfile_generated_in_run": True,
+                  "cargo_lock_sha256": lock_sha,
+                  "dependency_tree_sha256": tree_sha,
+                  "dependency_resolution": "cargo generate-lockfile im Lauf; Lockfile nicht im Repository versioniert"
+              },
+              "artifact_paths": sorted(arts.keys()),
+              "artifact_sha256": arts,
+              "build_result": {"build": "success", "tests": "success", "test_summary": [l for l in test_log.splitlines() if l.startswith("test result:")]},
+              "reproducibility": {
+                  "status": "PARTIAL",
+                  "reason": "Kein Cargo.lock im Repository (HEAD ohne Lockfile); Abhaengigkeitsauflösung ist im Manifest gebunden, aber nicht vorab fixiert.",
+                  "gate_note": "GATE-002 verlangt reproduzierbare Build-Beschreibung; ohne versioniertes Lockfile bleibt der Nachweis unvollstaendig."
+              }
+          }
+          with open("build-evidence/build-manifest.json", "w") as f:
+              json.dump(manifest, f, indent=2, sort_keys=True)
+              f.write("\n")
+          print(json.dumps(manifest, indent=2, sort_keys=True))
+          PY
+
+      - name: Manifest gegen Artefakte verifizieren
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, sys
+          m = json.load(open("build-evidence/build-manifest.json"))
+          bad = []
+          for rel, meta in m["artifact_sha256"].items():
+              h = hashlib.sha256(open(rel, "rb").read()).hexdigest()
+              if h != meta["sha256"]:
+                  bad.append((rel, h, meta["sha256"]))
+          print("geprueft:", len(m["artifact_sha256"]), "| Abweichungen:", len(bad))
+          if bad:
+              print(bad); sys.exit(1)
+          print("Manifest-SHA-256 stimmt mit den tatsaechlichen Dateien ueberein")
+          PY
+          sha256sum build-evidence/build-manifest.json | tee build-evidence/manifest.sha256
+
+      - name: Evidence-Artefakt hochladen
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: build-evidence-${{ github.run_id }}
+          path: build-evidence/
+          if-no-files-found: error
