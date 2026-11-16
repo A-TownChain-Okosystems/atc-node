@@ -5,7 +5,7 @@
 //! keine Transaktionssemantik, ATC-HASH-001 TownHash-256 (64-Bit-Traversal,
 //! SCR-0120, nicht kryptoanalysiert, kein Merkle-Baum, Devnet-Cap 64.
 
-use crate::bootstrap::{Genesis, townhash_u64};
+use crate::bootstrap::{townhash_u64, Genesis};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Block {
@@ -42,11 +42,15 @@ pub struct Chain {
 
 impl Chain {
     pub fn from_genesis(g: &Genesis) -> Chain {
-        Chain { blocks: vec![Block::genesis_block(g)] }
+        Chain {
+            blocks: vec![Block::genesis_block(g)],
+        }
     }
 
     pub fn best(&self) -> &Block {
-        self.blocks.last().expect("Kette enthaelt immer den Genesis-Block")
+        self.blocks
+            .last()
+            .expect("Kette enthaelt immer den Genesis-Block")
     }
 
     pub fn height(&self) -> u64 {
@@ -64,7 +68,10 @@ impl Chain {
             return Err("Devnet-MVP: Kette auf 64 Bloecke begrenzt".to_string());
         }
         if payload.contains('|') || payload.contains(';') {
-            return Err("Devnet-MVP: '|' und ';' in Payloads verboten (Gossip-Wire-Format, SCR-0118)".to_string());
+            return Err(
+                "Devnet-MVP: '|' und ';' in Payloads verboten (Gossip-Wire-Format, SCR-0118)"
+                    .to_string(),
+            );
         }
         let (height, prev_hash) = {
             let best = self.best();
@@ -92,7 +99,10 @@ impl Chain {
             }
             if i == 0 {
                 if b.height != 0 {
-                    return Err(format!("Genesis-Block muss Hoehe 0 haben, ist {}", b.height));
+                    return Err(format!(
+                        "Genesis-Block muss Hoehe 0 haben, ist {}",
+                        b.height
+                    ));
                 }
             } else {
                 let p = &self.blocks[i - 1];
@@ -164,10 +174,16 @@ mod tests {
         c.produce("ehrlich-2").unwrap();
         let mut gefaelscht = c.clone();
         gefaelscht.blocks[1].payload = "gefaelscht".to_string();
-        assert!(gefaelscht.verify().is_err(), "Payload-Manipulation muss auffallen");
+        assert!(
+            gefaelscht.verify().is_err(),
+            "Payload-Manipulation muss auffallen"
+        );
         let mut umgehaengt = c.clone();
         umgehaengt.blocks[2].prev_hash = 123;
-        assert!(umgehaengt.verify().is_err(), "Verkettungs-Bruch muss auffallen");
+        assert!(
+            umgehaengt.verify().is_err(),
+            "Verkettungs-Bruch muss auffallen"
+        );
         assert!(c.verify().is_ok(), "Original bleibt valide");
     }
 
@@ -180,7 +196,11 @@ mod tests {
             k1.produce(p).unwrap();
             k2.produce(p).unwrap();
         }
-        assert_eq!(k1.best_hash(), k2.best_hash(), "gleiche Genesis + gleiche Payloads => identische Kette");
+        assert_eq!(
+            k1.best_hash(),
+            k2.best_hash(),
+            "gleiche Genesis + gleiche Payloads => identische Kette"
+        );
         assert_eq!(k1, k2);
     }
 
@@ -190,7 +210,11 @@ mod tests {
         let c1 = Chain::from_genesis(&g);
         g.chain_name = "A-TownChain Devnet ALT".to_string();
         let c2 = Chain::from_genesis(&g);
-        assert_ne!(c1.best_hash(), c2.best_hash(), "Genesis-Drift muss die Kette aendern");
+        assert_ne!(
+            c1.best_hash(),
+            c2.best_hash(),
+            "Genesis-Drift muss die Kette aendern"
+        );
     }
 
     #[test]

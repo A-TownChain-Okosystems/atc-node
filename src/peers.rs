@@ -29,7 +29,11 @@ impl PeerTable {
         if self.peers.iter().any(|p| p.id == id) {
             return false;
         }
-        self.peers.push(Peer { id, addr: addr.into(), state: PeerState::Connected });
+        self.peers.push(Peer {
+            id,
+            addr: addr.into(),
+            state: PeerState::Connected,
+        });
         true
     }
 
@@ -58,7 +62,9 @@ impl PeerTable {
     }
 
     pub fn is_banned(&self, id: u64) -> bool {
-        self.peers.iter().any(|p| p.id == id && p.state == PeerState::Banned)
+        self.peers
+            .iter()
+            .any(|p| p.id == id && p.state == PeerState::Banned)
     }
 
     pub fn len(&self) -> usize {
