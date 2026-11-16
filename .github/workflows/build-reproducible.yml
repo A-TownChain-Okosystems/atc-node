@@ -5,7 +5,6 @@ name: Build and Reproducibility Evidence (ATC-STD-203 GATE-002)
 # run_id und commit_sha. Kein nachtraeglich geschriebenes Manifest, keine Platzhalter.
 on:
   push:
-    branches: [main]
   pull_request:
   workflow_dispatch:
 
